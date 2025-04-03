@@ -5,6 +5,8 @@ import { MessageKind } from '../enums/Periscope.enum'
 import { ChatHistoryMessage, ChatMessage, ChatMessageData } from '../interfaces/Periscope.interface'
 import { logger as baseLogger } from '../logger'
 import { Util } from '../utils/Util'
+import AISummarizer from './AISummarizer'
+import { Config } from '../config/config'
 
 export class SpaceCaptionsExtractor {
   private logger: winston.Logger
@@ -32,6 +34,7 @@ export class SpaceCaptionsExtractor {
         }
         fs.writeFileSync(this.outFile, '')
         await this.processFile()
+        await this.callAISummarizer()
         resolve(this.outFile)
       } catch (error) {
         this.logger.error(error.message)
@@ -88,5 +91,18 @@ export class SpaceCaptionsExtractor {
       : ''
     const msg = `${time}${obj.username}: ${obj.body.trim()}\n`
     fs.appendFileSync(this.outFile, msg)
+  }
+
+  private async callAISummarizer() {
+    try {
+      const config = Config.getInstance().getConfig()
+      if (config.ai?.summary?.enabled) {
+        this.logger.info('正在调用 AI 摘要功能...')
+        const summarizer = new AISummarizer(config.ai.summary.apiKey, config.ai.summary.apiEndpoint)
+        await summarizer.summarize(this.outFile)
+      }
+    } catch (error) {
+      this.logger.error(`AI 摘要生成失败: ${error instanceof Error ? error.message : String(error)}`)
+    }
   }
 }
